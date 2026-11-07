@@ -83,13 +83,23 @@ class FlowMatchingPolicy(BasePolicy):
         hidden_dims: tuple[int, ...] = (128, 128),
     ) -> None:
         super().__init__(state_dim, action_dim, chunk_size)
+        self.net = nn.Sequential(nn.Linear(chunk_size*action_dim+state_dim+1, hidden_dims[0]), nn.ReLU())
+        for i in range(1, len(hidden_dims)):
+            self.net.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
+            self.net.append(nn.ReLU())
+        self.net.append(nn.Linear(hidden_dims[-1], chunk_size*action_dim))
 
     def compute_loss(
         self,
         state: torch.Tensor,
         action_chunk: torch.Tensor,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        # raise NotImplementedError
+        t = torch.rand(state.shape[0], 1, device=state.device, dtype=state.dtype)
+        action_0 = torch.normal(0.0, 1.0, size=(state.shape[0], self.chunk_size*self.action_dim), device=state.device, dtype=state.dtype)
+        action_t = (1-t)*action_0 + t * action_chunk.reshape(action_chunk.shape[0], self.action_dim*self.chunk_size)
+        return nn.functional.mse_loss(self.sample_velocity(state, t, action_t), 
+                                      action_chunk.reshape(action_chunk.shape[0], self.action_dim*self.chunk_size)-action_0)
 
     def sample_actions(
         self,
@@ -97,7 +107,17 @@ class FlowMatchingPolicy(BasePolicy):
         *,
         num_steps: int = 10,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        # raise NotImplementedError
+        dt = 1/num_steps 
+        t = dt * torch.ones(state.shape[0], 1, device=state.device, dtype=state.dtype)
+        actions = torch.normal(0.0, 1.0, size=(state.shape[0], self.chunk_size*self.action_dim), device=state.device, dtype=state.dtype)
+        for i in range(num_steps):
+            actions = actions + self.net(torch.cat([state, actions, t*i], dim=-1))*dt
+        return actions.view(-1, self.chunk_size, self.action_dim)
+
+    def sample_velocity(self, state, t, action_chunk):
+        v = self.net(torch.cat([state, action_chunk, t], dim=-1))
+        return v
 
 
 PolicyType: TypeAlias = Literal["mse", "flow"]

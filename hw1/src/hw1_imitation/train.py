@@ -127,7 +127,41 @@ def run_training(config: TrainConfig) -> None:
     )
     logger = Logger(log_dir)
 
-    ### TODO: PUT YOUR MAIN TRAINING LOOP HERE ###
+    # Optimize normalized action chunks and evaluate at fixed training steps.
+    ################################
+    # answer code
+    from hw1_imitation.evaluation import evaluate_policy
+    ################################
+
+    ################################
+    # answer code
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr,
+                                  weight_decay=config.weight_decay)
+    if len(loader) == 0:
+        raise ValueError("Dataset must contain at least one full training batch")
+    step = 0
+    evaluate_policy(model, normalizer, device, config.chunk_size,
+                    config.video_size, config.num_video_episodes,
+                    config.flow_num_steps, step, logger)
+    for epoch in range(config.num_epochs):
+        model.train()
+        for state, action_chunk in loader:
+            state, action_chunk = state.to(device), action_chunk.to(device)
+            loss = model.compute_loss(state, action_chunk)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            step += 1
+            should_evaluate = (step % config.eval_interval == 0
+                               or step == config.num_epochs * len(loader))
+            if step % config.log_interval == 0 and not should_evaluate:
+                logger.log({"train/loss": loss.item(), "train/epoch": epoch}, step)
+            if should_evaluate:
+                evaluate_policy(model, normalizer, device, config.chunk_size,
+                                config.video_size, config.num_video_episodes,
+                                config.flow_num_steps, step, logger)
+                model.train()
+    ################################
 
     logger.dump_for_grading()
 

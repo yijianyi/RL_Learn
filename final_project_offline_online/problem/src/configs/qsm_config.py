@@ -29,13 +29,17 @@ def qsm_config(
     **kwargs,
 ):
     def make_actor(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create actor
-        return ...
+        ################################
+        # answer code
+        return VectorFieldPolicy(action_dim, int(np.prod(observation_shape)), num_layers, hidden_size)
+        ################################
 
 
     def make_critic(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create critic (ensemble of Q-functions)
-        return ...
+        ################################
+        # answer code
+        return EnsembleCritic(int(np.prod(observation_shape)), action_dim, num_layers, hidden_size, 2)
+        ################################
     
     def make_optimizer(params: torch.nn.ParameterList) -> torch.optim.Optimizer:
         return torch.optim.Adam(params, lr=learning_rate)

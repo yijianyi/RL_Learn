@@ -1,29 +1,25 @@
 from __future__ import annotations
 
-from typing import Dict
-
+################################
+# answer code
+from llm_rl_final_proj.rl.grpo import GRPO
+from llm_rl_final_proj.models.logprobs import masked_mean, masked_mean_per_row
+################################
 import torch
 
-from llm_rl_final_proj.models.load import PolicyModel
-from llm_rl_final_proj.rl.base import RLAlgorithm
-from llm_rl_final_proj.rollout.rollout_buffer import RolloutBatch
 
-
-class DrGRPO(RLAlgorithm):
-    """DrGRPO removes the GRPO sequence-length normalization and std scaling."""
-
+################################
+# answer code
+class DrGRPO(GRPO):
     name = "dr_grpo"
 
-    def update(
-        self,
-        model: PolicyModel,
-        optimizer: torch.optim.Optimizer,
-        rollout: RolloutBatch,
-        grad_accum_steps: int = 1,
-    ) -> Dict[str, float]:
-        del model, optimizer, rollout, grad_accum_steps
-        # TODO(student): implement DrGRPO.
-        # Start from your GRPO implementation, then make the two intended changes:
-        #   1. use the DrGRPO advantage convention (configured in online/train_rm_grpo.py),
-        #   2. remove the per-sequence length normalization inside the surrogate.
-        raise NotImplementedError("Implement DrGRPO.update in the student starter.")
+    def policy_objective(self, log_ratio, advantages, mask):
+        ratio = log_ratio.clamp(-20, 20).exp()
+        high = self.cfg.clip_eps_high if self.cfg.clip_eps_high > 0 else self.cfg.clip_eps
+        clipped = ratio.clamp(1 - self.cfg.clip_eps, 1 + high)
+        objective = torch.minimum(ratio * advantages[:, None], clipped * advantages[:, None])
+        # Every token has the same weight, independent of its completion's length.
+        loss = -(objective * mask).sum(dim=1).mean() / max(1, self.cfg.max_completion_length)
+        clipfrac = masked_mean(((ratio < 1 - self.cfg.clip_eps) | (ratio > 1 + high)).float(), mask)
+        return loss, clipfrac
+################################

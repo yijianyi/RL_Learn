@@ -64,8 +64,17 @@ class SACBCAgent(nn.Module):
         Update Q(s, a)
         """
         # TODO(student): Compute the Q loss
-        q = ...
-        loss = ...
+        ################################
+        # answer code
+        with torch.no_grad():
+            next_dist = self.actor(next_observations)
+            next_actions = next_dist.rsample()
+            next_q = self.target_critic(next_observations, next_actions).min(dim=0).values
+            next_q = next_q - self.beta() * next_dist.log_prob(next_actions)
+            target = rewards + self.discount * (1.0 - dones.float()) * next_q
+        q = self.critic(observations, actions)
+        loss = ((q - target.unsqueeze(0)) ** 2).mean()
+        ################################
 
         self.critic_optimizer.zero_grad()
         loss.backward()
@@ -88,12 +97,15 @@ class SACBCAgent(nn.Module):
         Update the actor
         """
         # TODO(student): Compute the actor loss
-        q_loss = ...
-
-        mses = ...
-        bc_loss = ...
-
-        entropy_loss = ...
+        ################################
+        # answer code
+        dist = self.actor(observations)
+        sampled_actions = dist.rsample()
+        q_loss = -self.critic(observations, sampled_actions).mean()
+        mses = (sampled_actions - actions).square()
+        bc_loss = self.alpha * mses.mean()
+        entropy_loss = self.beta().detach() * dist.log_prob(sampled_actions).mean()
+        ################################
 
         loss = q_loss + bc_loss + entropy_loss
 
@@ -156,4 +168,9 @@ class SACBCAgent(nn.Module):
 
     def update_target_critic(self) -> None:
         # TODO(student): Update target_critic using Polyak averaging with self.target_update_rate
-        ...
+        ################################
+        # answer code
+        with torch.no_grad():
+            for target, source in zip(self.target_critic.parameters(), self.critic.parameters()):
+                target.lerp_(source, self.target_update_rate)
+        ################################

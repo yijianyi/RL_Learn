@@ -75,6 +75,10 @@ class OnlineRMGRPOConfig:
     clip_eps_high: float = 0.0
     kl_coef: float = 0.02
     adv_clip: float = 5.0
+    ################################
+    # answer code
+    online_preference_beta: float = 0.1
+    ################################
 
     max_prompt_tokens: int = 700
     max_response_tokens: int = 512
@@ -103,13 +107,15 @@ class OnlineRMGRPOConfig:
     sample_log_max_chars: int = 2500
 
 
-def parse_args() -> OnlineRMGRPOConfig:
+################################
+# answer code
+def parse_args(default_algo: str = "grpo") -> OnlineRMGRPOConfig:
     ap = argparse.ArgumentParser(description="Train a policy online with a GRPO-family algorithm using a learned reward model.")
     ap.add_argument(
         "--algo",
         type=str,
-        default=OnlineRMGRPOConfig.algo,
-        choices=["grpo", "dr_grpo", "gspo"],
+        default=default_algo,
+        choices=["grpo", "dr_grpo", "gspo", "ppo", "online_dpo"],
     )
     ap.add_argument("--model_name", type=str, default=OnlineRMGRPOConfig.model_name)
     ap.add_argument("--reward_model_name", type=str, default=OnlineRMGRPOConfig.reward_model_name)
@@ -145,6 +151,7 @@ def parse_args() -> OnlineRMGRPOConfig:
     ap.add_argument("--clip_eps_high", type=float, default=OnlineRMGRPOConfig.clip_eps_high)
     ap.add_argument("--kl_coef", type=float, default=OnlineRMGRPOConfig.kl_coef)
     ap.add_argument("--adv_clip", type=float, default=OnlineRMGRPOConfig.adv_clip)
+    ap.add_argument("--online_preference_beta", type=float, default=OnlineRMGRPOConfig.online_preference_beta)
 
     ap.add_argument("--max_prompt_tokens", type=int, default=OnlineRMGRPOConfig.max_prompt_tokens)
     ap.add_argument("--max_response_tokens", type=int, default=OnlineRMGRPOConfig.max_response_tokens)
@@ -181,6 +188,7 @@ def parse_args() -> OnlineRMGRPOConfig:
     ap.add_argument("--sample_log_max_chars", type=int, default=OnlineRMGRPOConfig.sample_log_max_chars)
     args = ap.parse_args()
     return OnlineRMGRPOConfig(**vars(args))
+################################
 
 
 def maybe_update_warmup_lr(optimizer: torch.optim.Optimizer, base_lr: float, step: int, warmup_steps: int) -> None:
@@ -209,14 +217,27 @@ def _compute_group_advantages(
     *,
     divide_by_std: bool,
 ) -> torch.Tensor:
-    del eps
+    # eps stabilizes normalization for groups with equal rewards.
     # TODO(student): compute one scalar advantage per sampled completion by grouping rewards
     # into prompt-wise batches of size `group_size`, subtracting the group mean, and optionally
     # dividing by the group standard deviation when `divide_by_std=True`.
-    raise NotImplementedError("Implement _compute_group_advantages in the student starter.")
+    ################################
+    # answer code
+    if group_size <= 0 or rewards.numel() % group_size:
+        raise ValueError("group_size must be positive and divide the reward count")
+    if rewards.numel() == 0:
+        return rewards.clone()
+    groups = rewards.reshape(-1, group_size)
+    advantages = groups - groups.mean(dim=1, keepdim=True)
+    if divide_by_std:
+        advantages = advantages / (groups.std(dim=1, keepdim=True, unbiased=False) + eps)
+    return advantages.reshape_as(rewards)
+    ################################
 
 
 def _build_online_algo(cfg: OnlineRMGRPOConfig):
+    ################################
+    # answer code
     algo_cfg = AlgoConfig(
         ppo_epochs=cfg.ppo_epochs,
         minibatch_size=cfg.minibatch_size,
@@ -225,21 +246,40 @@ def _build_online_algo(cfg: OnlineRMGRPOConfig):
         kl_coef=cfg.kl_coef,
         max_grad_norm=cfg.max_grad_norm,
         adv_clip=cfg.adv_clip,
+        max_completion_length=cfg.max_new_tokens,
         seed=cfg.seed,
     )
+    ################################
     if cfg.algo == "grpo":
         return GRPO(algo_cfg)
     if cfg.algo == "dr_grpo":
         return DrGRPO(algo_cfg)
     if cfg.algo == "gspo":
         return GSPO(algo_cfg)
+    ################################
+    # answer code
+    if cfg.algo == "ppo":
+        from llm_rl_final_proj.rl.ppo import PPO
+        return PPO(algo_cfg)
+    if cfg.algo == "online_dpo":
+        from llm_rl_final_proj.rl.online_dpo import OnlineDPO
+        return OnlineDPO(algo_cfg, group_size=cfg.group_size, beta=cfg.online_preference_beta)
+    ################################
     raise ValueError(f"Unsupported --algo {cfg.algo}")
 
 
 def _algo_divides_advantages_by_std(algo: str) -> bool:
     # TODO(student): return True for the algorithms that use group-standard-deviation
     # normalization and False for the algorithms that intentionally avoid it.
-    raise NotImplementedError("Implement _algo_divides_advantages_by_std in the student starter.")
+    ################################
+    # answer code
+    algo = algo.strip().lower().replace("-", "_")
+    if algo in ("grpo", "gspo", "reinforce"):
+        return True
+    if algo in ("dr_grpo", "drgrpo", "ppo", "online_dpo"):
+        return False
+    raise ValueError(f"Unknown online algorithm: {algo}")
+    ################################
 
 
 def _normalize_completion_for_reward_scoring(text: str) -> str:
@@ -378,8 +418,10 @@ def evaluate_policy_with_reward_model(
     return metrics, rows, rm_scores
 
 
-def main() -> None:
-    cfg = parse_args()
+################################
+# answer code
+def main(default_algo: str = "grpo") -> None:
+    cfg = parse_args(default_algo=default_algo)
     set_seed(cfg.seed)
     require_cuda_if_requested()
     if cfg.steps <= 0:
@@ -609,6 +651,7 @@ def main() -> None:
             save_checkpoint(policy_model, cfg, step=step)
 
     logger.finish()
+################################
 
 
 if __name__ == "__main__":

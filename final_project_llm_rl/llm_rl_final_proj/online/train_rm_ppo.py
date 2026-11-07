@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-"""Student extension hook for Part 2 PPO-style online RLHF methods, if you want to implement PPO.
-"""
-
-import argparse
+################################
+# answer code
+"""Train ppo using the shared learned-reward rollout/evaluation pipeline."""
+################################
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Student extension hook for Part 2 PPO-style online RLHF methods.")
-    parser.parse_args()
-    raise NotImplementedError(
-        "Implement your method in llm_rl_final_proj/online/train_rm_ppo.py."
-    )
+    ################################
+    # answer code
+    from llm_rl_final_proj.online.train_rm_grpo import main as train
+    train(default_algo="ppo")
+    ################################
 
 
 if __name__ == "__main__":

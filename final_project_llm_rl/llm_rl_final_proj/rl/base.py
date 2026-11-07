@@ -18,6 +18,11 @@ class AlgoConfig:
     kl_coef: float = 0.02
     max_grad_norm: float = 0.5
     adv_clip: float = 5.0
+    # DrGRPO uses a fixed completion budget, independent of generated length.
+    ################################
+    # answer code
+    max_completion_length: int = 256
+    ################################
 
     # Helpful for deterministic shuffling across runs.
     seed: int = 0

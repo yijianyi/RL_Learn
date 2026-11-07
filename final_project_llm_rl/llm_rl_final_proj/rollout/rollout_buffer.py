@@ -40,7 +40,23 @@ def iter_minibatches(
     generator: Optional[torch.Generator] = None,
     device: Optional[torch.device] = None,
 ) -> Iterator[RolloutBatch]:
-    del batch, minibatch_size, shuffle, generator, device
-    # TODO(student): iterate over the rollout in minibatches, optionally shuffling the row indices,
-    # and yield RolloutBatch objects containing the selected subset.
-    raise NotImplementedError("Implement iter_minibatches in the student starter.")
+    ################################
+    # answer code
+    if minibatch_size <= 0:
+        raise ValueError("minibatch_size must be positive")
+    n = batch.input_ids.shape[0]
+    index_device = generator.device if generator is not None else batch.input_ids.device
+    indices = (torch.randperm(n, generator=generator, device=index_device) if shuffle
+               else torch.arange(n, device=index_device))
+    tensor_fields = ("input_ids", "attention_mask", "completion_mask", "old_logprobs",
+                     "ref_logprobs", "rewards", "advantages")
+    for start in range(0, n, minibatch_size):
+        idx = indices[start:start + minibatch_size]
+        fields = {name: getattr(batch, name).index_select(
+            0, idx.to(getattr(batch, name).device)) for name in tensor_fields}
+        for name in ("task_names", "completion_texts"):
+            values = getattr(batch, name)
+            fields[name] = None if values is None else [values[i] for i in idx.tolist()]
+        mb = RolloutBatch(**fields)
+        yield mb.to(device) if device is not None else mb
+    ################################

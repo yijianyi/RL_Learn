@@ -96,6 +96,14 @@ class Reinforce(RLAlgorithm):
             n_mb += 1
 
         if accum > 0 and (accum % max(1, grad_accum_steps)) != 0:
+            # The final window contains fewer minibatches than grad_accum_steps.
+            ################################
+            # answer code
+            remaining = accum % max(1, grad_accum_steps)
+            for param in trainable_params:
+                if param.grad is not None:
+                    param.grad.mul_(max(1, grad_accum_steps) / remaining)
+            ################################
             gnorm = clip_grad_norm_(trainable_params, cfg.max_grad_norm)
             if math.isfinite(gnorm):
                 optimizer.step()

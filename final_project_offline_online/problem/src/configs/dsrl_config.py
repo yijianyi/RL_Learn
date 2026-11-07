@@ -28,20 +28,29 @@ def dsrl_config(
     **kwargs,
 ):
     def make_bc_flow_actor(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create BC flow actor - refer to FQL config
-        return ...
+        ################################
+        # answer code
+        return VectorFieldPolicy(action_dim, int(np.prod(observation_shape)), num_layers, hidden_size)
+        ################################
 
     def make_noise_actor(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create noise actor - this can be a regular MLP
-        return ...
+        ################################
+        # answer code
+        return Policy(action_dim, int(np.prod(observation_shape)), False, num_layers,
+                      hidden_size, use_tanh=True, state_dependent_std=True)
+        ################################
 
     def make_critic(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create critic - will be a ensemble of Q-functions
-        return ...
+        ################################
+        # answer code
+        return EnsembleCritic(int(np.prod(observation_shape)), action_dim, num_layers, hidden_size, 2)
+        ################################
     
     def make_noise_critic(observation_shape: Tuple[int, ...], action_dim: int) -> nn.Module:
-        # TODO(student): Create noise critic - will be a ensemble of Q-functions
-        return ...
+        ################################
+        # answer code
+        return EnsembleCritic(int(np.prod(observation_shape)), action_dim, num_layers, hidden_size, 2)
+        ################################
 
     def make_optimizer(params) -> torch.optim.Optimizer:
         return torch.optim.Adam(params, lr=learning_rate)
@@ -61,6 +70,8 @@ def dsrl_config(
 
     log_string = f"{exp_name or 'dsrl'}_{env_name}"
 
+    ################################
+    # answer code
     config = {
         "agent_kwargs": {
             "make_bc_flow_actor": make_bc_flow_actor,
@@ -69,6 +80,8 @@ def dsrl_config(
             "make_noise_actor_optimizer": make_optimizer,
             "make_critic": make_critic,
             "make_critic_optimizer": make_optimizer,
+            "make_z_critic": make_noise_critic,
+            "make_z_critic_optimizer": make_optimizer,
 
             "discount": discount,
             "target_update_rate": target_update_rate,
@@ -86,5 +99,6 @@ def dsrl_config(
         "learning_rate": learning_rate,
         **kwargs,
     }
+    ################################
 
     return config

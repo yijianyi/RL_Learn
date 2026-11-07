@@ -72,7 +72,10 @@ def offline_to_online_modal_remote(*args: str) -> None:
     if args.njobs is not None and len(args.job_specs) > 0:
         # Run n jobs in parallel
         from scripts.run_njobs import main_njobs
-        main_njobs(job_specs=args.job_specs, njobs=args.njobs)
+        ################################
+        # answer code
+        main_njobs(job_specs=args.job_specs, njobs=args.njobs, entrypoint="train_offline_online")
+        ################################
     else:
         # Run a single job
         main(args)
